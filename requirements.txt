@@ -1,6 +1,5 @@
 sanic==22.6.2
 transformers
 accelerate
-base64
 wave
 numpy
