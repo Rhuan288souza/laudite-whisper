@@ -5,6 +5,11 @@ WORKDIR /
 
 # Install git
 RUN apt-get update && apt-get install -y git
+FROM python:3.8.16-buster
+FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
+FROM nvcr.io/nvidia/pytorch:22.09-py3
+
+ENV DEBIAN_FRONTEND noninteractive
 
 # Install python packages
 RUN pip3 install --upgrade pip
