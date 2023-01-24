@@ -73,7 +73,7 @@ def healthcheck(request):
     return response.json({"state": "healthy", "gpu": gpu})
 
 # Inference POST handler at '/' is called for every http call from Banana
-@server.route('/transcribe', methods=["POST"]) 
+@server.route('/', methods=["POST"]) 
 def inference(request):
     #init()
     audio_file = request.json
