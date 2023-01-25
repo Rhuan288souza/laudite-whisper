@@ -6,14 +6,28 @@ import torch
 import numpy as np
 import time, os
 from scipy.io.wavfile import read
+from transformers import WhisperFeatureExtractor
+from transformers import WhisperTokenizer, WhisperProcessor
+from transformers import WhisperForConditionalGeneration
 
+MODEL_NAME = 'laudite-ai/whisper-base-205h-e30-self-training'
+API_KEY = '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'
 
 # Init is ran on server startup
 # Load your model to GPU as a global variable here using the variable name "model"
 def init():
-    global model
+    global model,processor,device
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    print('#laudite-sr: dispositivo:\n', device)
+
+    feature_extractor = WhisperFeatureExtractor.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
+    tokenizer = WhisperTokenizer.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
+    processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
+    model = WhisperForConditionalGeneration.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
+    model.to(device)
+    model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language='pt', task='transcribe')
 
 
 def buffer_to_text(audio_buffer):
