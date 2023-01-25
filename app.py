@@ -6,29 +6,31 @@ import torch
 import numpy as np
 import time, os
 from scipy.io.wavfile import read
-from transformers import WhisperFeatureExtractor
-from transformers import WhisperTokenizer, WhisperProcessor
-from transformers import WhisperForConditionalGeneration
+from transformers import AutoModelForCTC, AutoProcessor, Wav2Vec2Processor
 
-MODEL_NAME = 'laudite-ai/whisper-base-205h-e30-self-training'
+MODEL_NAME = 'laudite-ai/wav2vec2-large-a3500-e30'
 API_KEY = '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'
 
 # Init is ran on server startup
 # Load your model to GPU as a global variable here using the variable name "model"
-def init():
+def init(hotwords=[], use_lm_if_possible = True):
     global model,processor,device
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     print('#laudite-sr: dispositivo:\n', device)
+    
+    if use_lm_if_possible:
+        processor = AutoProcessor.from_pretrained(MODEL_NAME,use_auth_token=API_KEY)
+    else:
+        processor = Wav2Vec2Processor.from_pretrained(MODEL_NAME,use_auth_token=API_KEY)
 
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
-    tokenizer = WhisperTokenizer.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
-    processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
-    model = WhisperForConditionalGeneration.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
+    model = AutoModelForCTC.from_pretrained(MODEL_NAME,use_auth_token=API_KEY)
+    print('#laudite-sr: modelo carregado.')
+    hotwords = hotwords
+    use_lm_if_possible = use_lm_if_possible
+
     model.to(device)
-    model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language='pt', task='transcribe')
-
 
 def buffer_to_text(audio_buffer):
     global model, processor, device
@@ -50,6 +52,26 @@ def buffer_to_text(audio_buffer):
     inference_time = time.perf_counter()-start
     return transcription, inference_time
 
+def transcribe_audio(audio, is_wav_file=False):
+    audio_buffer = np.frombuffer(audio, dtype=np.int16) / 32767
+
+    start = time.perf_counter()
+    try:
+        transcription = buffer_to_text(audio_buffer)
+        transcription = transcription.lower()
+        inference_time = time.perf_counter()-start
+        if transcription != "":
+            print('transcription: ', transcription)
+            print('inference_time: ', inference_time)
+            
+        return transcription, inference_time
+
+    except Exception as e:
+        print('inference error')
+        print(e)
+
+        return None, None
+
 # Inference is ran for every server call
 # Reference your preloaded global model variable here.
 def inference(request:dict) -> dict:
@@ -61,7 +83,7 @@ def inference(request:dict) -> dict:
     data_array = np.array(data)
 
     try:
-        text,inference_time = buffer_to_text(data_array)
+        text,inference_time = transcribe_audio(data_array)
     except:
         text = ''
         inference_time = 0
