@@ -2,11 +2,9 @@
 # It runs during container build time to get model weights built into the container
 
 import torch
-from transformers import WhisperFeatureExtractor
-from transformers import WhisperTokenizer, WhisperProcessor
-from transformers import WhisperForConditionalGeneration
+from transformers import AutoModelForCTC, AutoProcessor, Wav2Vec2Processor
 
-MODEL_NAME = 'laudite-ai/whisper-base-205h-e30-self-training'
+MODEL_NAME = 'laudite-ai/wav2vec2-large-a3500-e30'
 API_KEY = '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'
 
 def download_model():
@@ -15,13 +13,18 @@ def download_model():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     print('#laudite-sr: dispositivo:\n', device)
+    
+    if use_lm_if_possible:
+        processor = AutoProcessor.from_pretrained(MODEL_NAME,use_auth_token=API_KEY)
+    else:
+        processor = Wav2Vec2Processor.from_pretrained(MODEL_NAME,use_auth_token=API_KEY)
 
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
-    tokenizer = WhisperTokenizer.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
-    processor = WhisperProcessor(feature_extractor=feature_extractor, tokenizer=tokenizer)
-    model = WhisperForConditionalGeneration.from_pretrained(MODEL_NAME, use_auth_token=API_KEY)
+    model = AutoModelForCTC.from_pretrained(MODEL_NAME,use_auth_token=API_KEY)
+    print('#laudite-sr: modelo carregado.')
+    hotwords = hotwords
+    use_lm_if_possible = use_lm_if_possible
+
     model.to(device)
-    model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language='pt', task='transcribe')
-
+    
 if __name__ == "__main__":
     download_model()

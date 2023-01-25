@@ -33,44 +33,36 @@ def init(hotwords=[], use_lm_if_possible = True):
     model.to(device)
 
 def buffer_to_text(audio_buffer):
-    global model, processor, device
+    global model, processor, device, use_lm_if_possible
     start = time.perf_counter()
     
     if len(audio_buffer) == 0:
         return ''
+
+    inputs = processor(
+        torch.tensor(audio_buffer, device=device),
+        sampling_rate=16_000,
+        return_tensors='pt',
+        padding=True).to(device)
     
     with torch.no_grad():
-        inputs = torch.tensor(
-            processor.feature_extractor(
-                audio_buffer, sampling_rate=16_000
-            ).input_features[0],
-            device=device).unsqueeze(0)
+        logits = model(inputs.input_values).logits
 
-    predicted_ids = model.generate(inputs)
-    transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
-    
-    inference_time = time.perf_counter()-start
+    if hasattr(processor, 'decoder') and use_lm_if_possible:
+        transcription = processor.decode(
+            logits[0].cpu().numpy(),
+            hotwords=hotwords,
+            output_word_offsets=True)
+
+        transcription = transcription.text
+
+    else:
+        predicted_ids = torch.argmax(logits, dim=-1)
+        transcription = processor.batch_decode(predicted_ids)[0]
+
+    end = time.perf_counter()
+    inference_time = end - start
     return transcription, inference_time
-
-def transcribe_audio(audio, is_wav_file=False):
-    audio_buffer = np.frombuffer(audio, dtype=np.int16) / 32767
-
-    start = time.perf_counter()
-    try:
-        transcription = buffer_to_text(audio_buffer)
-        transcription = transcription.lower()
-        inference_time = time.perf_counter()-start
-        if transcription != "":
-            print('transcription: ', transcription)
-            print('inference_time: ', inference_time)
-            
-        return transcription, inference_time
-
-    except Exception as e:
-        print('inference error')
-        print(e)
-
-        return None, None
 
 # Inference is ran for every server call
 # Reference your preloaded global model variable here.
@@ -82,9 +74,13 @@ def inference(request:dict) -> dict:
     data = data / (2**15)
     data_array = np.array(data)
 
+    with open("output.txt", "w") as f:
+        f.write(str(data_array))
+
     try:
-        text,inference_time = transcribe_audio(data_array)
-    except:
+        text,inference_time = buffer_to_text(data_array)
+    except Exception as e:
+        print(e)
         text = ''
         inference_time = 0
 
