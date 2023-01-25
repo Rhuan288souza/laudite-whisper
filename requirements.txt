@@ -3,3 +3,5 @@ transformers
 accelerate
 wave
 numpy
+urllib3==1.25.4
+banana-dev==3.0.0
